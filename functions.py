@@ -13,7 +13,7 @@ from shutil import copyfile
 def load(expt_path, file_choice, anndata=True, hashed=False):
 	#Build read path
 	if type(file_choice) == int:
-		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, settings.clustered_velocity_file, settings.cluster_subset_file]
+		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, settings.merged_file, settings.clustered_velocity_file]
 		read_path = os.path.join(expt_path, files[file_choice])
 	else: read_path = os.path.join(expt_path, file_choice)
 
@@ -125,7 +125,7 @@ def process_velocity(expt_path='', data=None, save=True, read_file=None, write_f
 #Alias for adata.write, to allow integer-based saving
 def save(adata, expt_path, file_choice):
 	if type(file_choice) == int:
-		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, settings.clustered_velocity_file]
+		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, setting.merged_file, settings.clustered_velocity_file]
 		write_path = os.path.join(expt_path, files[file_choice])
 	else: write_path = os.path.join(expt_path, file_choice)
 
