@@ -6,7 +6,9 @@ import magpy as mp
 import loompy as lpy
 import magpy.settings as settings
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import scvelo as scv
+import pandas as pd
 from shutil import copyfile
 
 #Alias for sc.read_h5ad and sc.read_10x_h5, file_choice should be an integer or file name
@@ -94,6 +96,7 @@ def process_velocity(expt_path='', data=None, save=True, read_file=None, write_f
 	adata_path = os.path.join(expt_path,read_file)
 	save_path = os.path.join(expt_path,write_file)
 
+	print(save_path)
 	if data is None:
 		print(f"Reading adata from {adata_path}")
 		adata = sc.read_h5ad(adata_path)
@@ -121,11 +124,13 @@ def process_velocity(expt_path='', data=None, save=True, read_file=None, write_f
 		print(f"Saving updated preprocessed data to {save_path}")
 		adata.write(save_path)
 	print("RNA velocity addition complete.\n")
+	
+	return(adata)
 
 #Alias for adata.write, to allow integer-based saving
 def save(adata, expt_path, file_choice):
 	if type(file_choice) == int:
-		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, setting.merged_file, settings.clustered_velocity_file]
+		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, settings.merged_file, settings.clustered_velocity_file]
 		write_path = os.path.join(expt_path, files[file_choice])
 	else: write_path = os.path.join(expt_path, file_choice)
 
@@ -280,12 +285,14 @@ def subset_by_cluster(subset_cluster_list, expt_path='', data=None, save=True, f
 	subset_path = os.path.join(expt_path,write_file)
 
 	print('\nSubsetting dataset by Leiden Clustering')
+
 	
 	if data is None:
 		print(f"Reading adata from {cluster_path}")
 		adata = sc.read_h5ad(cluster_path)
 	else: adata = data
 	print("Clustering data...")
+	print(adata)
 	
 	#print(adata.obs_names.tolist())
 	
@@ -303,91 +310,79 @@ def subset_by_cluster(subset_cluster_list, expt_path='', data=None, save=True, f
 		adata.write(subset_path)
 
 	print("Clustering complete.\n")
+	print(adata)
+	return(adata)
 	
-def in_silico_FACS(adata,cell_IDs,gene,cutoff,criteria,format,sort_count):
+def in_silico_FACS(adata,cell_IDs,gene,cutoff,criteria,form,sort_count,gate_logic):
 
-	print('\nSubsetting dataset by in-silico FACS')
-	sorted_cell_IDs = []
-	sort_count=1
-	with open(sort_list,'r') as file:
-		for line in file:
-			if line:
-				string = line.strip().split('|')
-				gene = string[0].strip()
-				cutoff = string[1].strip()
-				criteria = string[2].strip()
-				format = string[3].strip()
-				title = file_tag+gene+'_'
-				sorted_cell_IDs = sort_cells(adata,sorted_cell_IDs,gene,cutoff,criteria,format,sort_count)
-		sorted_adata = adata[adata.obs_names.isin(sorted_cell_IDs)]
-	sorted = True
-	
-	sorted_results_file = title+'sc.h5ad'
-	raw_adata = adata.raw
-	
-	print('\nPulling Cell IDs from index for gene: ', gene)
-	df = pd.DataFrame({gene:raw_adata[:, gene].X,'Cell_ID':raw_adata.obs_names})
-	df = df.set_index('Cell_ID')
-	all_cell_IDs = raw_adata.obs_names.tolist()
+	#print('\nPulling Cell IDs from index for gene:', gene)
+	df = pd.DataFrame(adata[:, gene].X,columns=[gene],index=adata.obs_names)
+	all_cell_IDs = adata.obs_names.tolist()
 	
 	if sort_count == 1:
 		cell_total = len(all_cell_IDs)
 	else:
 		cell_total = len(cell_IDs)
 		
-	if format == 'percent':
+	if form == 'percent':
 		cutoff = float(cutoff)
 		score_cutoff = df.quantile(cutoff)
-		print(score_cutoff)
 		if criteria == 'greater':
-			print('Cells that pass filtering threshold: ',df[df > score_cutoff].count())
-			print('Total:', cell_total,'\n\n')
 			df1 = df[df > score_cutoff]
-			sorted_cell_IDs = df1.loc[df1[gene] > 0].index.tolist()
+			sorted_cell_IDs = df1.loc[df1[gene].notnull()].index.tolist()
+			print('Cells that pass filtering threshold for',gene,': ',len(sorted_cell_IDs))
+			print('Cell Total:', cell_total,'\n\n')
 		if criteria == 'less':
-			print('Cells that pass filtering threshold: ',df[df < score_cutoff].count())
-			print('Total:', cell_total,'\n\n')
 			df1 = df[df < score_cutoff]
-			sorted_cell_IDs = df1.loc[df1[gene] >= 0].index.tolist()
-	if (format == 'number' and cutoff == 'mean'):
+			sorted_cell_IDs = df1.loc[df1[gene].notnull()].index.tolist()
+			print('Cells that pass filtering threshold for',gene,': ',len(sorted_cell_IDs))
+			print('Cell Total:', cell_total,'\n\n')
+	if (form == 'number' and cutoff == 'mean'):
 		score_cutoff = df.mean()[0]
-		print(score_cutoff)
 		if criteria == 'greater':
-			print('Cells that pass filtering threshold: ',df[df > df.mean()[0]].count())
-			print('Total:', cell_total,'\n\n')
 			df1 = df[df > score_cutoff]
-			sorted_cell_IDs = df1.loc[df1[gene] > 0].index.tolist()
+			sorted_cell_IDs = df1.loc[df1[gene].notnull()].index.tolist()
+			print('Cells that pass filtering threshold for',gene,': ',df[df < df.mean()[0]].count())
+			print('Cell Total:', cell_total,'\n\n')
 		elif criteria == 'less':
-			print('Cells that pass filtering threshold: ',df[df < df.mean()[0]].count())
-			print('Total:', cell_total,'\n\n')
 			df1 = df[df < score_cutoff]
-			sorted_cell_IDs = df1.loc[df1[gene] >= 0].index.tolist()
-	elif format == 'number':
+			sorted_cell_IDs = df1.loc[df1[gene].notnull()].index.tolist()
+			print('Cells that pass filtering threshold for ',gene,': ',len(sorted_cell_IDs))
+			print('Cell Total:', cell_total,'\n\n')
+	elif form == 'number':
 		score_cutoff = float(cutoff)
-		print(score_cutoff)
 		if criteria == 'greater':
-			print('Cells that pass filtering threshold: ',df[df > score_cutoff].count())
-			print('Total:', cell_total,'\n\n')
 			df1 = df[df > score_cutoff]
-			sorted_cell_IDs = df1.loc[df1[gene] > 0].index.tolist()
+			#(df1)
+			sorted_cell_IDs = df1.loc[df1[gene].notnull()].index.tolist()
+			print('Cells that pass filtering threshold for',gene+': [',len(sorted_cell_IDs),']')
+			#print('Cell Total:', cell_total,'\n\n')
 		if criteria == 'less':
-			print('Cells that pass filtering threshold: ',df[df < score_cutoff].count())
-			print('Total:', cell_total,'\n\n')
 			df1 = df[df < score_cutoff]
-			sorted_cell_IDs = df1.loc[df1[gene] >= 0].index.tolist()
+			sorted_cell_IDs = df1.loc[df1[gene].notnull()].index.tolist()
+			print('Cells that pass filtering threshold for',gene,': ',len(sorted_cell_IDs))
+			print('Cell Total:', cell_total,'\n\n')
+		elif criteria =='exists':
+			df1 = df
+			sorted_cell_IDs = df1.loc[df1[gene].notnull()].index.tolist()
+			print('Cells that pass filtering threshold for',gene,': ',len(sorted_cell_IDs))
+			print('Cell Total:', cell_total,'\n\n')
 	elif not sorted_cell_IDs:
 		sorted_cell_IDs = adata.obs_names.tolist()
 		print('No sorting for ', gene, ' occurred')
-	
 	if cell_IDs:
-		sorted_cell_IDs = set(cell_IDs).intersection(sorted_cell_IDs)
+		if gate_logic == 'OR':
+			sorted_cell_IDs = set(cell_IDs).union(sorted_cell_IDs)
+		if gate_logic == 'AND':
+			sorted_cell_IDs = set(cell_IDs).intersection(sorted_cell_IDs)
 	else:
-		sorted_cell_IDs = set(all_cell_IDs).intersection(sorted_cell_IDs)
-
+		if gate_logic == 'AND':
+			sorted_cell_IDs = set(all_cell_IDs).intersection(sorted_cell_IDs)
 	
-	print('Pulling out [',len(sorted_cell_IDs),'] cells that meet sorting criteria\n')
+	#print('Pulling out [',len(sorted_cell_IDs),'] cells that meet sorting criteria for',gene,' \n')
 	sort_count=sort_count+1 
-	return(sorted_cell_IDs)
+	#print(sort_count)
+	return(sorted_cell_IDs,sort_count)
 
 def cluster_markers(expt_path='', data=None, min_in_group_fraction=None, min_fold_change=None, max_out_group_fraction=None):
 	
@@ -459,6 +454,30 @@ def write_marker_file(expt_path='', data=None):
 
 	outFile.close()
 
+def make_cmap(colors, position=None, bit=False):
+
+	bit_rgb = np.linspace(0,1,256)
+	if position == None:
+		position = np.linspace(0,1,len(colors))
+	else:
+		if len(position) != len(colors):
+			sys.exit('position length must be the same as colors')
+		elif position[0] != 0 or position[-1] != 1:
+			sys.exit('position must start with 0 and end with 1')
+	if bit:
+		for i in range(len(colors)):
+			colors[i] = (bit_rgb[colors[i][0]],
+						 bit_rgb[colors[i][1]],
+						 bit_rgb[colors[i][2]])
+	cdict = {'red':[], 'green':[], 'blue':[]}
+	for pos, color in zip(position, colors):
+		cdict['red'].append((pos, color[0], color[0]))
+		cdict['green'].append((pos, color[1], color[1]))
+		cdict['blue'].append((pos, color[2], color[2]))
+
+	cmap = mpl.colors.LinearSegmentedColormap('my_colormap',cdict,256)
+	return cmap
+	
 def scRNA_velocity(expt_path='',data=None):
 	
 	if read_file is None: read_file = settings.cluster_file
