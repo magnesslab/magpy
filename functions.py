@@ -11,21 +11,6 @@ import scvelo as scv
 import pandas as pd
 from shutil import copyfile
 
-#Alias for sc.read_h5ad and sc.read_10x_h5, file_choice should be an integer or file name
-def load(expt_path, file_choice, anndata=True, hashed=False):
-	#Build read path
-	if type(file_choice) == int:
-		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, settings.merged_file, settings.clustered_velocity_file]
-		read_path = os.path.join(expt_path, files[file_choice])
-	else: read_path = os.path.join(expt_path, file_choice)
-
-	#Read data
-	print(f"Reading data from {read_path}")
-	if anndata: adata = sc.read_h5ad(read_path)
-	else: adata = sc.read_10x_h5(read_path, gex_only=(not hashed)) 
-	print()
-
-	return (adata)
 
 def copy_loom(expt_path='', sample_ID=None, loom_file=None, read_file=None, write_file=None):
 	
@@ -73,6 +58,7 @@ def combine_loom(sample_list='', expt_path='', save=True, read_file=None, write_
 		new_path = expt_path+metadata[0]
 		loom_path = os.path.join(new_path,read_file)
 		ldata_list.append(loom_path)
+		print(loom_path)
 	
 	#print(ldata_list)
 	
@@ -126,54 +112,6 @@ def process_velocity(expt_path='', data=None, save=True, read_file=None, write_f
 	print("RNA velocity addition complete.\n")
 	
 	return(adata)
-
-#Alias for adata.write, to allow integer-based saving
-def save(adata, expt_path, file_choice):
-	if type(file_choice) == int:
-		files = [settings.raw_file, settings.adata_file, settings.pp_file, settings.pca_file, settings.cluster_file, settings.merged_file, settings.clustered_velocity_file]
-		write_path = os.path.join(expt_path, files[file_choice])
-	else: write_path = os.path.join(expt_path, file_choice)
-
-	print(f"Saving annotated data to {write_path}")
-	adata.write(write_path)
-
-
-#TODO - Add functionality for searching for a list of genes
-#Search adata.var_names for terms containing search_term
-def search(adata, search_term):
-	
-	if isinstance(search_term,str) is True:
-		results = [gene for gene in adata.var_names if search_term.lower() in gene.lower()]
-		if len(results) == 0: print(f"Sorry, searching for '{search_term}' yielded no results.")
-		else:
-			print(f"Search for '{search_term}' yielded {len(results)} result(s):")
-			for result in results:
-				print(result)
-			print()
-		return(results)
-	else:
-		gene_list=[]
-		not_found=[]
-		for item in search_term:
-			results = [gene for gene in adata.var_names if item.lower() == gene.lower()]
-			if len(results) == 0: 
-				not_found.append(item)
-			else:
-				for result in results:
-					gene_list.append(result)
-		print('Genes not found: ',len(not_found))
-		print('Genes found: ',len(gene_list))
-		print('Gene hits: ',gene_list)
-		return(gene_list)
-
-
-#DEPRECATED - Testing should be done with general linear modeling
-#Perform Benjamini-Hochberg multiple-testing correction on an ndarray of p-values
-def bh_correct(pvals):
-	ranked_pvals = rankdata(pvals)
-	adjusted_pvals = (pvals * len(pvals)) / ranked_pvals
-	adjusted_pvals[adjusted_pvals>1] = 1
-	return(adjusted_pvals)
 
 #Generate a panel of summary figures for preprocessing QC
 def summarize_adata(expt_path, adata, show=False, file_name="summary.png"):

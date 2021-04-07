@@ -2,6 +2,7 @@ import os
 import numpy as np
 import scanpy as sc
 import seaborn as sns
+import scrublet as scr
 import matplotlib.pyplot as plt
 import magpy.settings as settings
 from magpy.functions import *
@@ -14,19 +15,24 @@ from shutil import copyfile
 sep = '-----------------------------------------------------------------------------------------------------'
 
 #Reads in the meta-data table and returns meta-data for the speficied sample
-def load_metadata(sample_ID):
+def load_metadata(sample_ID=None):
 	
 	annotation_dict = dict()
 	table_path = '/proj/lab_data/single_cell_meta_data_table.tsv'
 	
-	for line in open(table_path, 'r'):
-		elem = str.split(line.rstrip())
-		if elem:
-			if elem[0] not in annotation_dict:
-				annotation_dict[elem[0]] = elem[1:]
-		
-	metadata = annotation_dict
-	return(metadata[sample_ID])
+	if sample_ID:
+		for line in open(table_path, 'r'):
+			elem = str.split(line.rstrip())
+			if elem:
+				if elem[0] not in annotation_dict:
+					annotation_dict[elem[0]] = elem[1:]
+			
+		metadata = annotation_dict
+		return(metadata[sample_ID])
+
+	else: 
+		df = pd.read_csv(table_path,sep="\t",index_col=0)
+		return df
 
 #Make a copy of the raw data file into an experiment directory
 def copy_data(raw_path='',expt_path='',sample_ID=None, read_file=None, write_file=None,):
@@ -67,7 +73,7 @@ def copy_data(raw_path='',expt_path='',sample_ID=None, read_file=None, write_fil
 	return(new_path)
 
 #Load an h5 file containing 10X raw filtered output and add some annotations
-def annotate(expt_path='', sample_ID=None, data=None, hashed=False, save=True, read_file=None, write_file=None, show=True):
+def annotate(expt_path='', sample_ID=None, data=None, hash_clusters=False, hashtag='totalseq', save=True, read_file=None, write_file=None, show=True):
 	print('Running initial filtering for:', sample_ID,'...')
 	
 	#Generate full paths for reading/writing
@@ -100,23 +106,28 @@ def annotate(expt_path='', sample_ID=None, data=None, hashed=False, save=True, r
 	adata.obs_names_make_unique()
 
 	# Annotate hashtag information
-	if hashed:
+	if hash_clusters:
+		from magpy.evaluate_hashtags import evaluate_hashtags
 		print("Annotating data with hashtag information...")
 		genes = []
 		hashtags = []
+
+		#Find all gene names containing the hashtag search term
 		for item in adata.var_names.tolist():
-			if 'hash' in item.lower(): hashtags.append(item)
-			elif 'totalseq' in item.lower(): hashtags.append(item)
-			elif item in ['Norm6h', 'Norm24h', 'Norm48h', 'Hypo6h', 'Hypo24h', 'Hypo48h']: hashtags.append(item)
+			if hashtag.lower() in item.lower(): hashtags.append(item)
 			else: genes.append(item)
-		if len(hashtags) == 0: raise Exception("No hashtags found.")
-		adata.obs['Hash_id'] = adata[:,hashtags].X.argmax(axis=1).A1 + 1
-		for tag in hashtags:
-			adata.obs[tag] = adata[:,tag].to_df()
-		adata = adata[:,genes]
+		if len(hashtags) == 0: raise Exception(f"No hashtags found matching {hashtag}.")
+
+		#Run hashtag demultiplexing algorithm
+		hdata = adata[:,hashtags].copy()
+		hdata = evaluate_hashtags(hdata, n_clusters=hash_clusters)
+
+		#Subset out hashtag info from gene expression matrix
+		print("Subsetting out detected multiplets")
+		adata = adata[hdata.obs['num_positive']<2,genes]
 		
 	#Initial pre-filtering based on absolute minimum thresholds
-	sc.pp.filter_cells(adata, min_genes=500)
+	sc.pp.filter_cells(adata, min_genes=200)
 	sc.pp.filter_genes(adata, min_cells=3)
 	print(f'{len(adata.obs_names)} cells and {len(adata.var_names)} genes kept based on minimum QC.')
 	
@@ -128,11 +139,12 @@ def annotate(expt_path='', sample_ID=None, data=None, hashed=False, save=True, r
 			meta_value = metadata[count]
 			adata.obs[meta_name] = meta_value
 	
-	
 	#Calculate and annotate qc metrics
 	print(adata)
-	adata.var['mt'] = adata.var_names.str.startswith('mt-')  # annotate the group of mitochondrial genes as 'mt'
-	sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], percent_top=None, log1p=False, inplace=True)
+	adata.var['mt'] = adata.var_names.str.startswith(mito_prefix)  # annotate the group of mitochondrial genes as 'mt'
+	adata.var['ribo'] = adata.var_names.str.startswith(("Rps","Rpl")) # annotate ribosomal genes as 'ribo'
+	adata.var['hb'] = adata.var_names.str.contains(("^Hb[^(P)]")) # annotate hemoglobin genes as 'hb'
+	sc.pp.calculate_qc_metrics(adata, qc_vars=['mt','ribo','hb'], percent_top=None, log1p=False, inplace=True)
 	
 	#Save annotated data to file
 	if save:
@@ -143,7 +155,7 @@ def annotate(expt_path='', sample_ID=None, data=None, hashed=False, save=True, r
 	return(adata)
 
 #Take annotated data and filter based on QC thresholds
-def preprocess(expt_path='', sample_ID=None, data=None, save=True, read_file=None, write_file=None, show=True, normalize=True):
+def preprocess(expt_path='', sample_ID=None, data=None, save=True, read_file=None, write_file=None, show=True, normalize=True, groupby = None):
 	#Generate full paths for reading/writing
 	if read_file is None: read_file = settings.adata_file
 	if write_file is None: write_file = settings.pp_file
@@ -158,40 +170,57 @@ def preprocess(expt_path='', sample_ID=None, data=None, save=True, read_file=Non
 		adata = sc.read_h5ad(adata_path)
 	else: adata = data
 	print("\nFiltering data...")
-	
-	sc.pl.violin(adata, ['n_genes_by_counts', 'total_counts', 'pct_counts_mt'],jitter=0.4, multi_panel=True)
-	sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt')
-	sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts')
 
 	start_cells = len(adata.obs_names)
-	start_genes = len(adata.var_names)
-	 
+	start_genes = len(adata.var_names)	
+
+	sc.pl.violin(adata, ['total_counts','n_genes_by_counts','pct_counts_mt'],jitter=0.4, multi_panel=True)
+
+	#Filter out cells with low UMI counts
+	print('\nFiltering out cells with counts below threshold: ', settings.min_counts_per_cell)
+	adata = adata[adata.obs['total_counts'] > settings.min_counts_per_cell, :]
+	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
+
+	#Filter out doublets, indicated by abnormally high UMI counts
+	print('\nFiltering out likely doublets with number of counts above: ', settings.max_counts_per_cell)
+	adata = adata[adata.obs['total_counts'] < settings.max_counts_per_cell, :]
+	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
+
+	#Filter out cells with low transcriptome complexity (num unique genes)
+	print('\nFiltering out cells with genes below threshold: ', settings.min_genes_per_cell)
+	adata = adata[adata.obs['n_genes_by_counts'] > settings.min_genes_per_cell, :]
+	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
+
+	#Filter out doublets, indicated by abnormally high number of unique genes
+	print('\nFiltering out likely doublets with number of genes above: ', settings.max_genes_per_cell)
+	adata = adata[adata.obs['n_genes_by_counts'] < settings.max_genes_per_cell, :]
+	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
+	
+	sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt', color = groupby)
+	sc.pl.scatter(adata, x='total_counts', y='pct_counts_ribo', color=groupby)
+	sc.pl.scatter(adata, x='total_counts', y='pct_counts_hb', color=groupby)
+	sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts', color = groupby)
+
 	#Filter out cells with a high mitochondrial ratio
 	print('\nFiltering out cells with more than ', settings.max_percent_mito,'% mitochondrial gene content')
 	adata = adata[adata.obs['pct_counts_mt'] < settings.max_percent_mito, :]
 	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
-
-	#Filter out cells with low signal
-	print('\nFiltering out cells with genes below threshold: ', settings.min_genes_per_cell)
-	adata = adata[adata.obs['n_genes_by_counts'] > settings.min_genes_per_cell, :]
+	
+	#Filter out cells with high ribosomal content
+	print('\nFiltering out cells with more than ', settings.max_percent_ribo,'% ribosomal gene content')
+	adata = adata[adata.obs['pct_counts_ribo'] < settings.max_percent_ribo, :]
 	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
 	
-	print('\nFiltering out cells with counts below threshold: ', settings.min_counts_per_cell)
-	adata = adata[adata.obs['total_counts'] > settings.min_counts_per_cell, :]
-	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
-	
-	#Filter out doublets, indicated by high counts
-	print('\nFiltering out likely doublets with genes counts above: ', settings.max_genes_per_cell)
-	adata = adata[adata.obs['n_genes_by_counts'] < settings.max_genes_per_cell, :]
-	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
-	
-	print('\nFiltering out likely doublets with genes counts above: ', settings.max_counts_per_cell)
-	adata = adata[adata.obs['total_counts'] < settings.max_counts_per_cell, :]
+	#Filter out cells with high hemoglobin content
+	print('\nFiltering out cells with more than ', settings.max_percent_hb,'% hemoglobin gene content')
+	adata = adata[adata.obs['pct_counts_hb'] < settings.max_percent_hb, :]
 	print(f'{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells pass filtering.')
 
-	sc.pl.violin(adata, ['n_genes_by_counts', 'total_counts', 'pct_counts_mt'],jitter=0.4, multi_panel=True)
-	sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt')
-	sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts')
+	sc.pl.violin(adata, ['total_counts','n_genes_by_counts','pct_counts_mt'],jitter=0.4, multi_panel=True)
+	sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt', color = groupby)
+	sc.pl.scatter(adata, x='total_counts', y='pct_counts_ribo', color=groupby)
+	sc.pl.scatter(adata, x='total_counts', y='pct_counts_hb', color=groupby)
+	sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts', color = groupby)
 	
 	#Summarize the data
 	print(f'\n{len(adata.var_names)}/{start_genes} genes and {len(adata.obs_names)}/{start_cells} cells in final dataset.')
@@ -249,9 +278,10 @@ def combine_experiments(sample_list='', expt_path='', data=None, save=True, read
 	return(adata)
 
 #Log-transform, regress out confounding variables, scale, and run PCA
-def process(expt_path='', data=None, save=True, fig_pfx="", read_file=None, write_file=None, show=True, merged=False,annotate_cell_cycle=True,regress_cell_cycle=False):
-	#Generate full read path
+def process(expt_path='', data=None, save=True, fig_pfx="", read_file=None, write_file=None, show=True, 
+	merged=False, annotate_cell_cycle=True, regress_cell_cycle=False, integrate_cycling_cells=False):
 	
+	#Generate full read path
 	if read_file is None and merged is False: read_file = settings.pp_file
 	elif read_file is None and merged is True: 
 		read_file = settings.merged_file
@@ -276,7 +306,7 @@ def process(expt_path='', data=None, save=True, fig_pfx="", read_file=None, writ
 	
 	#Regress out effects of total reads per cell and percentage mitochondrial genes
 	print("Regressing out effects of cell read quality...")
-	sc.pp.regress_out(adata,['total_counts','pct_counts_mt']) 
+	#sc.pp.regress_out(adata,['total_counts','pct_counts_mt']) 
 
 	#Annotate genes that show high variability in dataset
 	print("Determining highly variable genes...")
@@ -285,9 +315,19 @@ def process(expt_path='', data=None, save=True, fig_pfx="", read_file=None, writ
 	#Scale each gene to unit variance. Clip extreme outliers
 	print("Scaling data...")
 	sc.pp.scale(adata, max_value=settings.max_scaled_value)
+	
+	scrub = scr.Scrublet(adata.raw.X)
+	adata.obs['doublet_scores'], adata.obs['predicted_doublets'] = scrub.scrub_doublets()
+	scrub.plot_histogram()
+
+	sum(adata.obs['predicted_doublets'])
+	
+	adata.obs['doublet_info'] = adata.obs["predicted_doublets"].astype(str)
+	
+	sc.pl.violin(adata, 'n_genes_by_counts', jitter=0.4, groupby = 'doublet_info', rotation=45)
 
 	#Load cell cycle genes from regev data set
-	if annotate_cell_cycle:
+	if annotate_cell_cycle or integrate_cycling_cells:
 		print("Finding cell-cycle genes...")
 		dir_path = os.path.dirname(os.path.realpath(__file__))
 		with open(os.path.join(dir_path,'regev_lab_cell_cycle_genes.txt'),'r') as file:
@@ -310,7 +350,17 @@ def process(expt_path='', data=None, save=True, fig_pfx="", read_file=None, writ
 	#Regress out cell cycle effects if desired
 	if regress_cell_cycle:
 		print("Regressing out effects of cell cycle...")
-		sc.pp.regress_out(adata,['phase'])
+		sc.pp.regress_out(adata,['S_score', 'G2M_score'])
+		sc.pp.scale(adata)
+
+	#Re-calculate highly variable genes with S and G2M phase cells temporarily removed
+	if integrate_cycling_cells:
+		print("Re-calculating highly variable genes using only G1 cells")
+		raw_adata = adata.raw.to_adata()
+		raw_data = raw_adata[raw_adata.obs['phase'] == 'G1',:]
+		df = sc.pp.highly_variable_genes(raw_adata, inplace=False, min_mean=settings.min_mean, max_mean=settings.max_mean, min_disp=settings.min_disp)
+		for col in df:
+			adata.obs[col] = df[col]
 	
 	#Run PCA as initial dimension reduction
 	print("Computing principal components...")
@@ -331,7 +381,7 @@ def process(expt_path='', data=None, save=True, fig_pfx="", read_file=None, writ
 	return(adata)
 
 #Calculate nearest neighbors, clustering, and dimesionality reduction
-def cluster(expt_path='', data=None, save=True, fig_pfx="", read_file=None, write_file=None, show=True):
+def cluster(expt_path='', data=None, save=True, fig_pfx="", read_file=None, write_file=None, show=True, neighbors_key = None):
 	#Generate full read path
 	if read_file is None: read_file = settings.pca_file
 	if write_file is None: write_file = settings.cluster_file
@@ -343,9 +393,10 @@ def cluster(expt_path='', data=None, save=True, fig_pfx="", read_file=None, writ
 		adata = sc.read_h5ad(pca_path)
 	else: adata = data
 	print("Clustering data...")
-
+	
 	#Compute nearest-neighbors graph
-	sc.pp.neighbors(adata, n_neighbors=settings.num_neighbors, n_pcs=settings.num_pcs)
+	if neighbors_key is None: neighbors_key = 'X_pca'
+	sc.pp.neighbors(adata, n_neighbors=settings.num_neighbors, n_pcs=settings.num_pcs, use_rep = neighbors_key)
 
 	#Calculate cell clusters via leiden algorithm
 	print("Calculating Leiden clusters...")

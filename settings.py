@@ -35,7 +35,9 @@ preprocessing = """
 
 # Quality Filtering
 # Set values based on histograms in annotation step
-max_percent_mito = 0.5
+max_percent_mito = 50
+max_percent_ribo = 40
+max_percent_hb = 40
 min_genes_per_cell = 2000
 min_counts_per_cell = 5000
 
@@ -44,7 +46,7 @@ max_genes_per_cell = 10000
 max_counts_per_cell = 80000
 
 # Gene Filtering
-min_cells_per_gene = 5
+min_cells_per_gene = 3
 
 # Parameters for determining highly variable genes
 # Values are in normalized deviations from the mean
@@ -53,15 +55,18 @@ max_mean = 6
 min_disp = 0.2
 """
 
-max_percent_mito = 0.5
+max_percent_mito = 50
+max_percent_ribo = 40
+max_percent_hb = 40
 min_genes_per_cell = 2000
 min_counts_per_cell = 5000
 max_genes_per_cell = 10000
 max_counts_per_cell = 80000
-min_cells_per_gene = 5
+min_cells_per_gene = 3
 min_mean = 0.0125
 max_mean = 6
 min_disp = 0.2
+
 
 # --------------------------------------------------- #
 
@@ -99,8 +104,8 @@ maxiter = None
 spread = 1
 gamma = 1
 """
-num_neighbors = 50
-num_pcs = 10
+num_neighbors = 10
+num_pcs = 40
 leiden_resolution = 0.6
 min_dist = 0.3 
 maxiter = None 
