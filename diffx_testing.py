@@ -94,6 +94,9 @@ def _run_test(prefix, adata, formula, test_param, in_group, min_cells, batch_siz
     ### CASE 3 - TEST PARAMETER IS NOT BINARY, IN_GROUP IS SPECIFIED ###
     else:
         #Check for adequate cell numbers
+        if in_group not in num_cells:
+            print(f"No cells in {in_group} for {prefix}, skipping DE.")
+            return None
         if (num_cells[in_group] < min_cells) or ((adata.n_obs - num_cells[in_group]) < min_cells):
             print(f"Not enough cells in {prefix} to perform DE.")
             print("To run DE with less cells, specify min_cells in the function call.")

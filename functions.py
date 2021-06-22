@@ -10,7 +10,11 @@ import matplotlib as mpl
 import scvelo as scv
 import pandas as pd
 from shutil import copyfile
-
+from scipy.sparse import issparse
+from matplotlib import rcParams
+from matplotlib.colors import ColorConverter, is_color_like
+from pandas import unique, isnull, Index
+from scipy.sparse import issparse
 
 def copy_loom(expt_path='', sample_ID=None, loom_file=None, read_file=None, write_file=None):
 	
@@ -45,7 +49,7 @@ def copy_loom(expt_path='', sample_ID=None, loom_file=None, read_file=None, writ
 	
 	return()
 
-def combine_loom(sample_list='', expt_path='', save=True, read_file=None, write_file=None):
+def combine_loom(sample_list='', expt_path='', save=True, read_file=None, write_file=None, loom_files = None):
 	
 	if read_file is None: read_file = settings.loom_file
 	if write_file is None: write_file = settings.merged_loom_file
@@ -53,19 +57,23 @@ def combine_loom(sample_list='', expt_path='', save=True, read_file=None, write_
 	
 	ldata_list = []
 	
-	for sample_ID in sample_list:
-		metadata=mp.pipeline.load_metadata(sample_ID)
-		new_path = expt_path+metadata[0]
-		loom_path = os.path.join(new_path,read_file)
-		ldata_list.append(loom_path)
-		print(loom_path)
-	
+	if loom_files is None:
+		for sample_ID in sample_list:
+			metadata=mp.pipeline.load_metadata(sample_ID)
+			new_path = expt_path+metadata[0]
+			loom_path = os.path.join(new_path,read_file)
+			ldata_list.append(loom_path)
+			print(loom_path)
+	elif type(loom_files) == list:
+		for file in loom_files:
+			print(file)
+			ldata_list.append(file)
+	else:
+		print('looom files not identified! check your directories and make sure files are in the proper places')
 	#print(ldata_list)
 	
 	print('Combining all loom files into one merged loom file')
 	
-	#files = ["/proj/lab_data/10x_data/m-011-012_SPEM_1mo_10x_output/011_ctl/velocyto/ctl.loom" ,"/proj/lab_data/10x_data/m-009-010_SPEM_4mo_10x_output/010_ctl/velocyto/010_ctl.loom"]
-
 	lpy.combine(ldata_list, merged_path)
 	
 	print("Loom file merging complete.\n")
@@ -113,7 +121,7 @@ def process_velocity(expt_path='', data=None, save=True, read_file=None, write_f
 	
 	return(adata)
 
-#Generate a panel of summary figures for preprocessing QC
+#Generate a panel of summary figures for preprocessing QC *** should be updated for new QC parameters generated in 
 def summarize_adata(expt_path, adata, show=False, file_name="summary.png"):
 	save_path = os.path.join(expt_path,file_name)
 	
@@ -146,6 +154,7 @@ def summarize_adata(expt_path, adata, show=False, file_name="summary.png"):
 	if show ==True:
 		plt.show()
 
+## function once again filtering gene for what genes are in a dataset
 def create_gene_expression_list():
 	expressed_dict = dict()
 	
@@ -160,6 +169,7 @@ def create_gene_expression_list():
 	
 	return expressed_dict
 
+##wraper for calculating a gene score for a specific list | can probably go as this just looks to be filtering a gene list beforehand
 def calc_gene_scores():
 	expressed_dict = create_gene_expression_list()
 	
@@ -195,6 +205,7 @@ def calc_gene_scores():
 			genes_to_score = []
 			unplotted_score = []
 
+#function for creating a bunch of scatter plots | I don't see a strong reason to keep this? 
 def draw_scatter_plots(adata):
 	sc.pl.violin(adata, ['n_genes', 'n_counts', 'percent_mito','percent_Rp'], jitter=0.4, multi_panel=True, save = '_'+file_tag+'postFiltering1_plot', show = False)
 	sc.pl.scatter(adata, x='n_counts', y='percent_mito', color = dot_groups, show = False, save = '_'+file_tag+'post_counts_v_mito')
@@ -215,6 +226,7 @@ def draw_scatter_plots(adata):
 	sc.pl.scatter(adata, x = 'Lgr5', y = 'Bhlha15', color = cluster_key, use_raw = True, save = '_Lgr5_v_Mist1')
 	sc.pl.scatter(adata, x = 'Bhlha15', y = 'Tnfrsf19', color = cluster_key, use_raw = True, save = '_Mist1_v_Troy')
 
+## I definitely don't really need this right now unless you want a function to standardize this? it only takes one line in the jupyter notebooks
 def subset_by_cluster(subset_cluster_list, expt_path='', data=None, save=True, fig_pfx="", read_file=None, write_file=None):
 
 	if read_file is None: read_file = settings.cluster_file
@@ -250,7 +262,8 @@ def subset_by_cluster(subset_cluster_list, expt_path='', data=None, save=True, f
 	print("Clustering complete.\n")
 	print(adata)
 	return(adata)
-	
+
+## Function for pulling out cells with specific gene expression patterns
 def in_silico_FACS(adata,cell_IDs,gene,cutoff,criteria,form,sort_count,gate_logic):
 
 	#print('\nPulling Cell IDs from index for gene:', gene)
@@ -322,6 +335,7 @@ def in_silico_FACS(adata,cell_IDs,gene,cutoff,criteria,form,sort_count,gate_logi
 	#print(sort_count)
 	return(sorted_cell_IDs,sort_count)
 
+##just a wrapper for ranking genes by cluster, doesn't need to be included in the future
 def cluster_markers(expt_path='', data=None, min_in_group_fraction=None, min_fold_change=None, max_out_group_fraction=None):
 	
 	if data is None:
@@ -351,7 +365,8 @@ def cluster_markers(expt_path='', data=None, min_in_group_fraction=None, min_fol
 
 	#write_marker_file(expt_path, data)
 
-def write_marker_file(expt_path='', data=None):
+## Outputs marker genes into a list for simplified Dgex analysis
+def write_marker_file(expt_path='', data=None, ranked_genes = 25, rank_key = None, groupby = None):
 	print('\nParsing marker genes and saving to file. . . \n')
 
 	file_out = expt_path+'ranked_genes.csv'
@@ -360,16 +375,22 @@ def write_marker_file(expt_path='', data=None):
 		print(f"Reading adata from {cluster_path}")
 		adata = sc.read_h5ad(cluster_path)
 	else: adata = data
-	print("Clustering data...")
+	print("Writing ranked genes file...")
 	
-	marker_dict = adata.uns['rank_genes_groups']
+	if rank_key is None:
+		rank_key = 'rank_genes_groups'
+		
+	if groupby is None:
+		groupby = 'leiden' 
+	
+	marker_dict = adata.uns[rank_key]
 	unique_list = [] 
-	for x in adata.obs['leiden'].values.tolist(): 
+	for x in adata.obs[groupby].values.tolist(): 
 		if x not in unique_list: 
 			unique_list.append(str(x))
 	
 	outFile = open(file_out, 'w')
-	outFile.write('logFC,gene,score,pval,padj,leiden_cluster\n')
+	outFile.write('gene,z-score,pval,padj,log2FC,leiden_cluster\n')
 	
 	parsed_dict = dict()
 	
@@ -392,7 +413,9 @@ def write_marker_file(expt_path='', data=None):
 
 	outFile.close()
 
+## useful for making custom colormaps if you want that
 def make_cmap(colors, position=None, bit=False):
+
 
 	bit_rgb = np.linspace(0,1,256)
 	if position == None:
@@ -415,32 +438,3 @@ def make_cmap(colors, position=None, bit=False):
 
 	cmap = mpl.colors.LinearSegmentedColormap('my_colormap',cdict,256)
 	return cmap
-	
-def scRNA_velocity(expt_path='',data=None):
-	
-	if read_file is None: read_file = settings.cluster_file
-	if write_file is None: write_file = settings.tuft_cluster_subset_file
-	cluster_path = os.path.join(expt_path,read_file)
-	
-	
-	
-	
-	if data is None:
-		print(f"Reading adata from {cluster_path}")
-		adata = sc.read_h5ad(cluster_path)
-	else: adata = data
-	print("Clustering data...")
-	
-	adata = scv.read(d+results_file, cache = True)
-	ldata = scv.read(loom_file, cache = True)
-	adata = scv.utils.merge(adata,ldata)
-	
-	scv.pp.filter_and_normalize(adata)
-	scv.pp.moments(adata)
-	
-	scv.tl.velocity(adata, mode = 'stochastic')
-	scv.tl.velocity_graph(adata)
-	
-	scv.pl.velocity_embedding(adata, basis='umap', save = '_'+file_tag+'_velocity_embedding')
-	scv.pl.velocity_embedding_grid(adata, basis='umap', save = '_'+file_tag+'_velocity_embedding_grid')
-	scv.pl.velocity_embedding_stream(adata, basis='umap', save = '_'+file_tag+'_velocity_embedding_stream')

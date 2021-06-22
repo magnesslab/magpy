@@ -4,7 +4,7 @@ import scanpy as sc
 from glob import glob
 
 mp_path = os.path.dirname(mp.__file__)
-gsea_list_path = mp_path + "/gene_lists/msigdb.v7.2.symbols.gmt"
+gsea_list_path = mp_path + "/gene_lists/msigdb.v7.4.symbols.gmt"
 user_list_path = mp_path + "/gene_lists"
 
 

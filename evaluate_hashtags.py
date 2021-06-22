@@ -48,7 +48,7 @@ def evaluate_hashtags(adata, n_clusters=None, plot=True, plot_type='tsne'):
     adata.obs['cluster_str'] = adata.obs['cluster'].astype('str')
     
     cluster_map = {}
-    for cluster in range(n_clusters or adata.shape[1]):
+    for cluster in range(n_clusters or adata.shape[1]+1):
         raw_subset = adata.raw.to_adata()[adata.obs['cluster']==cluster,:]
         adata.var[f'cluster{cluster}_mean'] = raw_subset.X.mean(axis=0)
         cluster_map[cluster] = adata.var[f'cluster{cluster}_mean'].idxmax()
@@ -99,11 +99,11 @@ def evaluate_hashtags(adata, n_clusters=None, plot=True, plot_type='tsne'):
         fig, axes = plt.subplots(1,2,figsize=(14,7))
         
         if plot_type == 'umap':
-            sc.pp.neighbors(adata,use_rep='X_pca')
+            sc.pp.neighbors(adata,use_rep='X')
             sc.tl.umap(adata)
             sc.pl.umap(adata,color='cluster_str',ax=axes[0],show=False)
         elif plot_type == 'tsne':
-            sc.tl.tsne(adata,use_rep='X_pca')
+            sc.tl.tsne(adata,use_rep='X')
             sc.pl.tsne(adata,color='cluster_str',ax=axes[0],show=False)
         else: 
             raise Exception("Invalid plot_type - choose umap or tsne")

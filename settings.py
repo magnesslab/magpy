@@ -1,4 +1,5 @@
 files = """
+
 # ================================================== #
 # ============= FILES & DIRECTORIES ================ #
 # ================================================== #
@@ -11,6 +12,12 @@ pp_file = "preprocessed_adata.h5ad"
 pca_file = "processed_adata.h5ad"
 cluster_file = "clustered_adata.h5ad"
 """
+
+autosave = True
+autoshow = True
+figdir = '/proj/lost+found/figures'
+file_format_figs = '.svg'
+plot_prefix = 'fig_'
 
 raw_file = "filtered_feature_bc_matrix.h5"
 adata_file = "annotated_adata.h5ad"
@@ -47,12 +54,6 @@ max_counts_per_cell = 80000
 
 # Gene Filtering
 min_cells_per_gene = 3
-
-# Parameters for determining highly variable genes
-# Values are in normalized deviations from the mean
-min_mean = 0.0125
-max_mean = 6
-min_disp = 0.2
 """
 
 max_percent_mito = 50
@@ -63,9 +64,7 @@ min_counts_per_cell = 5000
 max_genes_per_cell = 10000
 max_counts_per_cell = 80000
 min_cells_per_gene = 3
-min_mean = 0.0125
-max_mean = 6
-min_disp = 0.2
+
 
 
 # --------------------------------------------------- #
@@ -79,7 +78,16 @@ processing = """
 
 # While scaling, clip extreme outliers
 max_scaled_value = 10
+
+# Parameters for determining highly variable genes
+# Values are in normalized deviations from the mean
+min_mean = 0.0125
+max_mean = 6
+min_disp = 0.2
 """
+min_mean = 0.0125
+max_mean = 6
+min_disp = 0.2
 max_scaled_value = 10
 
 # --------------------------------------------------- #

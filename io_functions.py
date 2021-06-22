@@ -1,4 +1,5 @@
 import os
+import psutil
 import scanpy as sc
 import magpy.settings as settings
 
