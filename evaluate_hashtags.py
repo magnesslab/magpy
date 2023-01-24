@@ -34,7 +34,10 @@ def fit_nbinom(y, method='nb2', verbose=True):
     return (size,prob)
 
 
-def evaluate_hashtags(adata, n_clusters=None, plot=True, plot_type='tsne'):
+def evaluate_hashtags(adata, n_clusters=None, plot=True, plot_type='tsne', write_pfx = None):
+    #Assign figure directory for outputs
+    figdir = sc.settings.figdir
+    
     #Subset out hashtag expression data and generate a new AnnData object
     adata.X = adata.X.todense()
     adata.raw = adata
@@ -81,8 +84,9 @@ def evaluate_hashtags(adata, n_clusters=None, plot=True, plot_type='tsne'):
             axes[i].plot(x_vals,y_vals,'r-')
             axes[i].set_title(hashtag)
             p_cutoff = stats.nbinom.isf(0.01,size, prob)
-            axes[i].plot((p_cutoff,p_cutoff),(0,y_vals.max()),'b--')
         
+            axes[i].plot((p_cutoff,p_cutoff),(0,y_vals.max()),'b--')
+
         #Calculate p values for every cell
         adata.obs[hashtag+'_pval'] = stats.nbinom.sf(raw_adata[:,hashtag].X,size,prob).ravel()
         
@@ -90,8 +94,11 @@ def evaluate_hashtags(adata, n_clusters=None, plot=True, plot_type='tsne'):
         adata.obs[hashtag+'_positive'] = adata.obs[hashtag+'_pval'] < 0.01
         adata.obs['num_positive'] += adata.obs[hashtag+'_positive']
         
-    if plot: plt.show()
-    
+    if plot:
+        fig.savefig(f"{figdir}/{write_pfx}_negbinom_cutoffs.svg", dpi = 300, format = 'svg')
+        plt.show()
+ 
+
     pd.options.display.float_format = "{:,.2f}".format
     print(adata.var)
     if plot:
@@ -136,10 +143,11 @@ def evaluate_hashtags(adata, n_clusters=None, plot=True, plot_type='tsne'):
     
     if plot: 
         if plot_type == 'tsne':
-            sc.pl.tsne(subset,color='hash_label',ax=axes[1])
+            sc.pl.tsne(subset,color='hash_label',ax=axes[1], show = False)
         elif plot_type == 'umap':
-            sc.pl.umap(subset,color='hash_label',ax=axes[1])
+            sc.pl.umap(subset,color='hash_label',ax=axes[1], show = False)
         plt.show()
+        fig.savefig(f"{figdir}/{write_pfx}_hashtag_clusters.svg", dpi = 300, format = 'svg')
     print()
     
     return adata

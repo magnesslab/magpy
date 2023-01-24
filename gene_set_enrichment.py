@@ -184,8 +184,9 @@ def score_genes(adata, gene_list, plot=True, inplace=True, normalize=False):
         adata = adata.copy()
     
     gene_dict = filter_genes(adata, gene_dict)
-    for key in gene_dict:
-        sc.tl.score_genes(adata, gene_list=gene_dict[key], score_name=key)
+    for key,values in gene_dict.items():
+        print(f"Scoring expression of {values} for {key} list")
+        sc.tl.score_genes(adata, gene_list=values, score_name=key)
         if normalize:
             adata.obs[key] = adata.obs[key] / adata.obs[key].max()
  

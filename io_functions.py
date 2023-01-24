@@ -1,7 +1,7 @@
 import os
-import psutil
 import scanpy as sc
 import magpy.settings as settings
+# import psutil
 
 #Alias for sc.read_h5ad and sc.read_10x_h5, file_choice should be an integer or file name
 def load(expt_path, file_choice, anndata=True, hashed=False):
@@ -19,7 +19,6 @@ def load(expt_path, file_choice, anndata=True, hashed=False):
 
 	return (adata)
 
-
 #Alias for adata.write, to allow integer-based saving
 def save(adata, expt_path, file_choice):
 	if type(file_choice) == int:
@@ -29,7 +28,6 @@ def save(adata, expt_path, file_choice):
 
 	print(f"Saving annotated data to {write_path}")
 	adata.write(write_path)
-
 
 #TODO - Add functionality for searching for a list of genes
 #Search adata.var_names for terms containing search_term

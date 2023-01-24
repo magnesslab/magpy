@@ -148,7 +148,8 @@ def de_test(adata, test_param, batch_param='donor',
     
     #Run tests on combined dataset
     results_list = []
-    formula = f"~ 1 + {batch_param} + {test_param}"
+    if batch_param: formula = f"~ 1 + {batch_param} + {test_param}"
+    else: formula = f"~ 1 + {test_param}"
     results = _run_test('combined', adata, formula, test_param, in_group, min_cells, batch_size)
     if results is None: return None #Exit out if not enough cells in combined dataset
     results_list.append(results)
@@ -170,3 +171,20 @@ def de_test(adata, test_param, batch_param='donor',
     results = results[[c for c in results if 'qval' in c]+[c for c in results if 'qval' not in c]]
     
     return results
+
+def save_signature_genes(results, output_file, min_expression=0.2, min_log2fc=0.25, max_qval=0.05):
+    #Create filters
+    qval_cols = [col for col in results if 'qval' in col]
+    f1 = (results[qval_cols] < max_qval).all(axis=1)
+    f2 = results['combined_in_mean'] > min_expression
+    f3 = results['combined_min_log2fc'] > min_log2fc
+
+    #Filter the data
+    results = results[f1 & f2 & f3]
+
+    #Sort by min_log2fc
+    results = results.sort_values('combined_min_log2fc',ascending=False)
+
+    #Save to new file
+    results.to_csv(output_file)
+    print(f"Gene signature data saved to {output_file}")

@@ -57,8 +57,8 @@ min_cells_per_gene = 3
 """
 
 max_percent_mito = 50
-max_percent_ribo = 40
-max_percent_hb = 40
+# max_percent_ribo = 40
+# max_percent_hb = 40
 min_genes_per_cell = 2000
 min_counts_per_cell = 5000
 max_genes_per_cell = 10000
@@ -113,7 +113,7 @@ spread = 1
 gamma = 1
 """
 num_neighbors = 10
-num_pcs = 40
+num_pcs = 50
 leiden_resolution = 0.6
 min_dist = 0.3 
 maxiter = None 
