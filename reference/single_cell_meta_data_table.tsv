@@ -1,7 +1,0 @@
-m-001	sinet_007_02132019/filtered_feature_bc_matrix.h5	age:tbd	tissue:SINET	gel:NA	media:NA	sex:tbd	sampleName:sinet_007
-m-002	sinet_009_03052019/filtered_feature_bc_matrix.h5	age:tbd	tissue:SINET	gel:NA	media:NA	sex:tbd	sampleName:sinet_009
-m-003	sinet_010_07012019/filtered_feature_bc_matrix.h5	age:tbd	tissue:SINET	gel:NA	media:NA	sex:tbd	sampleName:sinet_010
-m-004	magness_010_counts_ctl/filtered_feature_bc_matrix.h5	age:tbd	tissue:sotmach	treatment:Ctrl	media:NA	sex:tbd	sampleName:magness_010_counts_ctl
-m-005	magness_010_counts_exp/filtered_feature_bc_matrix.h5	age:tbd	tissue:sotmach	treatment:Exp	media:NA	sex:tbd	sampleName:magness_010_counts_exp
-m-006	Mag_006_GE_counts/filtered_feature_bc_matrix.h5	age:tbd	tissue:sotmach	treatment:Ctrl	media:NA	sex:tbd	sampleName:Mag_006_GE_counts
-m-007	hashing/filtered_feature_bc_matrix.h5	tissue:int_monolayers	treatment:lots	media:NA	sex:tbd	sampleName:hashed_monolayers
