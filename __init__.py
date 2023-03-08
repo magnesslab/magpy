@@ -1,6 +1,5 @@
 import magpy.settings as settings
 import magpy.pipeline as pipeline
-# import magpy.velocity as velocity
 import magpy.bulkseq as bulkseq
 
 from magpy.functions import *
