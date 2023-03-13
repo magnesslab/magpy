@@ -85,6 +85,134 @@ def means_to_df(adata, gene_list, save=None, groupby='lineage'):
     if save: df.to_csv(save)
     return df
 
+def sc_v_bulk(sc_data = None, bulk_data = None, v = None, gene_list_title = None):
+
+    ## initialize dataframe
+    df = pd.DataFrame(index = v)
+    print(f'studying similarity of in vitro and in vivo data for {gene_list_title}')
+    
+    ## subset by genes and or cell types if not already completed
+    # subset1 = adata[adata.obs.lineage=='C_lateACC',v]
+    subset2 = adata[:,v]
+#     print(subset2)
+    lineage_list = [lin for lin in subset2.obs.lineage.unique()]
+    lineage_order = ['C_ISC','C_earlyACC','C_lateACC']
+    lineage_list = sorted(lineage_list, key = lineage_order.index)
+    
+    ## subset bulk RNAseq data to the same gene list 
+    bulk_subset1 = bulk_data[:,v]
+    
+    ## calculate per cluster means for sc data
+    for i,cluster in enumerate(lineage_list):
+        subset2.varm[f'{cluster}_mean'] = np.zeros((subset2.n_vars, 4))
+        subset3 = subset2[subset2.obs.lineage==cluster]
+        subset2.varm[f'{cluster}_mean'][:,i] = subset3.X.mean(axis = 0).A1.flatten()
+        # print(subset.varm['means'])
+    
+    ## add mean expression values for gene list of interest from single cell to initialized dataframe
+    for i, cluster in enumerate(lineage_list):
+        df[f'{cluster}_mean'] = subset2.varm[f'{cluster}_mean'][:,i]
+    
+    ## for differentiation, order the bulk RNAseq data based on the duration of differetiation
+    day_list = [a for a in bulk_subset1.obs['diff'].unique()]
+    day_order = ['DC_EM1', 'DC_EM4', 'DC_DM2', 'DC_DM4_bat1']
+    day_list = sorted(day_list, key = day_order.index)
+
+    ## calculate per differentiation time point mean expression values and add these 
+    for i,day in enumerate(day_list):
+        bulk_subset1.varm[f'{day}_mean'] = np.zeros((bulk_subset1.n_vars, 6)) #gene, day
+        bulk_subset2 = bulk_subset1[bulk_subset1.obs['diff']==day]
+        bulk_subset1.varm[f'{day}_mean'][:,i] = bulk_subset2.X.mean(axis=0)
+
+    for i,day in enumerate(day_list):
+        df[f'{day}_mean'] = bulk_subset1.varm[f'{day}_mean'][:,i]
+    
+    #### how to draw each day on a separate plot in matplotlib####
+    
+    ## this variable is used for highlighting certain linear regression plots for differentiation days (bulk) vs clusters (single cell)
+    # best_fits = [(5,1),(4,1),(3,2),(2,2),(1,3),(0,2)]
+    
+    ## initialize matplotlib objects to hold the array of linear regressions
+#     fig, axes = plt.subplots(6,4,figsize = [20,15], sharey = True)
+    
+#     color = 'bo'
+#     slope = 1
+    
+#     # print(df)
+    
+#     for i,cluster in enumerate(lineage_list):
+#         col = i%6
+#         for j,day in enumerate(day_list):
+#             row = j%6
+#             for coords in best_fits:
+#                 (x_coord, y_coord) = coords
+#                 if i == y_coord and j == x_coord: 
+#                     color = 'ro'
+#                     # print(f'{cluster} ---- {day} ----- {color}')
+#             axes[row,col].plot(df[f'{cluster}_mean'], df[f'{day}_mean'], color)
+#             x_min, x_max = axes[row,col].get_xlim()
+#             c = x_min
+#             y_min, y_max = c, c + slope*(x_max-x_min)
+#             axes[row,col].plot([x_min, x_max], [y_min, y_max], color = 'black', ls = '--')
+#             axes[row,col].set_xlim([x_min, x_max])
+#             if col ==0:
+#                 axes[row,col].set(xlabel = f'{cluster}', ylabel = f'{day}')
+#             elif col >0:
+#                 axes[row,col].set(xlabel = f'{cluster}')
+#             color = 'bo'
+
+    #### how to draw each day on one figure ####
+
+    # colors = ['bo','ro','go','yo','ko','mo']
+
+    # fig,axis = plt.subplots()
+    # for j, cluster in enumerate(lineage_list):
+    #     for i,day in enumerate(day_list):
+    #         axis.plot(df[cluster], df[day], colors[i])
+    #         axis.legend(day_cols)
+    
+    ## initialize ditionary to hold results for residual calculation
+    results = {}
+    
+    for i,cluster in enumerate(lineage_list):
+        results[cluster] = []
+        for j,day in enumerate(day_list):
+
+            # axis = sns.residplot(x = df['sc_means'], y = df[day], data = df, label = day[:-8], lowess = True,
+            #                      robust = True)
+            # axis.legend()
+            # axis.set(xlabel = 'sc_mean', ylabel = 'bulk_mean')
+
+            #define response variable
+            y = df[f'{day}_mean']
+
+            #define predictor variables
+            x = df[f'{cluster}_mean']
+
+            #add constant to predictor variables
+            x = sm.add_constant(x)
+
+            #fit linear regression model
+            model = sm.OLS(y, x).fit()
+
+            #view model summary, calculate sum of squares
+#             print(sep)
+#             print(day)
+            results[cluster].append(((df[f'{day}_mean'] - df[f'{cluster}_mean'])**2).sum())
+
+#             print(model.summary())
+
+#             print('Calculated residual sum of sqares: ',model.ssr)
+    
+    df2 = pd.DataFrame(results, index = day_list)
+    df2 = df2[['C_ISC','C_earlyACC','C_lateACC']]
+    
+    # ax = plt.matshow(df2)
+    # ax.set_xlabel('in_vivo data')
+    # print(df2)
+    
+    return df2
+
 ## Function for pulling out cells with specific gene expression patterns
 def in_silico_FACS(adata,cell_IDs,gene,cutoff,criteria,form,sort_count,gate_logic):
 
