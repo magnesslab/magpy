@@ -1,4 +1,5 @@
-MAGPY – Magness Lab single cell analysis in Python
+# MAGPY – Magness Lab single cell analysis in Python
+
 Magpy is a toolkit developed by the Magness Lab at UNC Chapel Hill for integrating and analyzing and single cell RNA sequencing 
 gene expression data. This package adapts functions in [Scanpy](https://github.com/scverse/scanpy) and uses the [anndata](https://anndata.readthedocs.io/) structure. 
 Pipeline code is as used for publications in CMGH
