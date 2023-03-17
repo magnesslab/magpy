@@ -4,6 +4,7 @@ gene expression data. This package adapts functions in [Scanpy](https://github.c
 Pipeline code is as used for publications in CMGH
 
 [Burclaff and Bliton 2022](https://www.cmghjournal.org/article/S2352-345X(22)00034-0/fulltext)
+
 [Gomez and Bliton 2022](https://www.cmghjournal.org/article/S2352-345X(22)00074-1/fulltext)
 
 and in AJPGI
