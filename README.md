@@ -10,4 +10,4 @@ Pipeline code is as used for publications in CMGH
 
 and in AJPGI
 
-[Ok 2023](https://journals.physiology.org/doi/full/10.1152/ajpgi.00251.2022)
+[Ok and Liu 2023](https://journals.physiology.org/doi/full/10.1152/ajpgi.00251.2022)
