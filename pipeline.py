@@ -426,8 +426,7 @@ def recluster(adata, save=False, expt_path=None, write_file=None, recalc_hvg=Tru
 	#Annotate genes that show high variability in dataset
 	if recalc_hvg:
 		print("Determining highly variable genes...")
-		sc.pp.highly_variable_genes(raw_adata, min_mean=settings.min_mean, 
-			max_mean=settings.max_mean, min_disp=settings.min_disp, batch_key='donor', n_top_genes = hvg_num)
+		sc.pp.highly_variable_genes(raw_adata, min_mean=settings.min_mean, max_mean=settings.max_mean, min_disp=settings.min_disp, batch_key='donor', n_top_genes = hvg_num)
 		print("Highly variable genes: %d"%sum(raw_adata.var.highly_variable))
 	else: raw_adata.var['highly_variable'] = adata.var['highly_variable']
 	
